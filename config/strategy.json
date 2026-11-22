@@ -1,0 +1,26 @@
+{
+  "version": "trend-breakout-v1",
+  "price_basis": "unadjusted",
+  "warmup_bars": 75,
+  "moving_average_windows": [5, 13, 21, 34, 55],
+  "entry": {
+    "prior_high_window": 20,
+    "close_comparison": ">",
+    "fast_average": 21,
+    "slow_average": 55,
+    "average_comparison": ">"
+  },
+  "exit": {
+    "prior_low_window": 10,
+    "close_comparison": "<",
+    "fast_average": 21,
+    "slow_average": 55,
+    "average_comparison": "<"
+  },
+  "execution": {
+    "signal_timing": "after_close",
+    "fill_timing": "next_session_open",
+    "allow_pyramiding": false,
+    "allow_short": false
+  }
+}
