@@ -3,14 +3,16 @@ import {
   Activity, ArrowLeft, ArrowRight, BarChart3, Bell, CalendarDays,
   Check, ChevronDown, CircleHelp, Clock3, Database, FileClock,
   Download, Filter, Gauge, Layers3, LineChart, ListFilter, Menu, RefreshCw, Search, Settings2, ShieldCheck,
-  SlidersHorizontal, Star, Sun, Moon, X,
+  SlidersHorizontal, Star, Sun, Moon, X, Radio,
 } from 'lucide-react';
 import { api } from './api';
 import PriceChart from './components/PriceChart';
+import RealtimePage from './RealtimePage';
 import type { ChartData, Instrument, Market, MarketStatus, Opportunity, Page, SimulationResult, WatchItem } from './types';
 
 const navGroups = [
   { label: '研究', items: [
+    { id: 'realtime' as Page, label: '实时行情', icon: Radio },
     { id: 'overview' as Page, label: '市场全景', icon: BarChart3 },
     { id: 'opportunities' as Page, label: '机会池', icon: Activity },
     { id: 'instrument' as Page, label: '个股分析', icon: LineChart },
@@ -22,7 +24,7 @@ const navGroups = [
 ];
 
 const pageTitles: Record<Page, string> = {
-  overview: '市场全景', opportunities: '机会池', instrument: '个股分析', watchlist: '我的自选', replay: '历史回放',
+  overview: '市场全景', opportunities: '机会池', instrument: '个股分析', watchlist: '我的自选', replay: '历史回放', realtime: '实时行情',
 };
 
 const maLabels = [5, 13, 21, 34, 55];
@@ -199,7 +201,7 @@ export default function App() {
     <aside className="sidebar">
       <div className="brand-lockup">
         <div className="brand-mark"><span /><span /><span /></div>
-        <div><strong>港美股 / 研究台</strong><small>本机日终研究工作台</small></div>
+        <div><strong>港美股 / 研究台</strong><small>本机行情与研究工作台</small></div>
       </div>
       <div className="workspace-pill"><span className="workspace-orbit"><Activity size={13} /></span><span><strong>个人研究空间</strong><small>本机工作区</small></span><ChevronDown size={14} /></div>
       <div className="nav-area">
@@ -216,8 +218,8 @@ export default function App() {
       <div className="sidebar-bottom">
         <div className="source-card">
           <div className="source-card__top"><span className="pulse-dot" /><span>数据源状态</span><span className="source-mode">DEMO</span></div>
-          <strong>合成演示模式</strong>
-          <p>此处不是实时行情。真实数据源需核验许可并另行授权。</p>
+          <strong>研究数据：合成演示</strong>
+          <p>实时行情单独接入，在「实时行情」页查看数据源和授权状态。</p>
         </div>
         <button className="nav-item nav-item--muted" onClick={() => setNotice('运行状态：本机 · 合成数据 · 只读研究')}><Settings2 size={17} /><span>工作台说明</span><CircleHelp size={14} className="nav-help" /></button>
         <div className="user-card"><div className="avatar">研</div><span><strong>个人研究员</strong><small>本机单用户</small></span><Menu size={16} /></div>
@@ -228,13 +230,13 @@ export default function App() {
       <header className="topbar">
         <div className="topbar__crumb"><span>研究终端</span><span className="crumb-slash">/</span><strong>{pageTitles[page]}</strong></div>
         <div className="topbar__tools">
-          <div className="global-search">
+          {page !== 'realtime' && <div className="global-search">
             <Search size={15} />
             <input aria-label="搜索证券代码或名称" value={search} onChange={(event) => { setSearch(event.target.value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} onBlur={() => window.setTimeout(() => setSearchOpen(false), 120)} onKeyDown={(event) => { if (event.key === 'Enter' && searchResults[0]) openInstrument(searchResults[0].instrument_id); if (event.key === 'Escape') setSearchOpen(false); }} placeholder="搜索代码 / 名称" />
             <kbd>⌘ K</kbd>
             {searchOpen && search.trim() && <div className="search-dropdown">{searchResults.length ? searchResults.map((item) => <button key={item.instrument_id} onMouseDown={(event) => event.preventDefault()} onClick={() => openInstrument(item.instrument_id)}><span className="search-market">{item.market}</span><span><strong>{item.display_symbol}</strong><small>{item.name}</small></span><ArrowRight size={14} /></button>) : <div className="search-no-result">目录中没有匹配证券</div>}</div>}
-          </div>
-          <span className="topbar-divider" />
+          </div>}
+          {page !== 'realtime' && <><span className="topbar-divider" />
           <div className="market-switch" role="group" aria-label="选择市场">
             <button className={market === 'HK' ? 'selected' : ''} onClick={() => { setMarket('HK'); setRedUp(null); }}>HK</button>
             <button className={market === 'US' ? 'selected' : ''} onClick={() => { setMarket('US'); setRedUp(null); }}>US</button>
@@ -244,6 +246,8 @@ export default function App() {
           <span className="local-time"><Clock3 size={14} />{new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false }).format(minute)} <small>北京</small></span>
           <button className="icon-button notification-button" aria-label="数据说明" title="查看数据说明" onClick={() => setNotice('仅演示：所有价格、证券和信号均为合成数据')}><Bell size={16} /><i /></button>
           <button className="top-refresh" onClick={refresh} disabled={isRefreshing}><RefreshCw size={15} className={isRefreshing ? 'spin' : ''} /><span>{isRefreshing ? '计算中' : '重新计算'}</span></button>
+          </>}
+          {page === 'realtime' && <button className="icon-button theme-toggle" aria-label={theme === 'dark' ? '切换浅色主题' : '切换深色主题'} title={theme === 'dark' ? '切换浅色主题' : '切换深色主题'} onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}<span>{theme === 'dark' ? '浅色' : '深色'}</span></button>}
         </div>
       </header>
 
@@ -255,6 +259,7 @@ export default function App() {
           {page === 'instrument' && activeInstrument && <InstrumentPage instrument={activeInstrument} redUp={themeRedUp} theme={theme} onWatch={() => api.addWatch(activeInstrument.instrument_id).then(() => setNotice('已加入自选')).catch((reason) => setError((reason as Error).message))} allInstruments={allInstruments} onSelect={setSelectedId} onBack={() => setPage('opportunities')} />}
           {page === 'watchlist' && <WatchlistPage market={market} setMarket={setMarket} redUp={themeRedUp} instruments={allInstruments} onOpenInstrument={openInstrument} onNotice={setNotice} />}
           {page === 'replay' && <ReplayPage market={market} instruments={allInstruments} onOpenInstrument={openInstrument} />}
+          {page === 'realtime' && <RealtimePage />}
         </>}
       </main>
       <footer className="app-footer"><span><ShieldCheck size={13} />仅本机 · 只读研究</span><span>规则 <b>trend-breakout-v1</b></span><span>© 2026 港美股研究台</span></footer>

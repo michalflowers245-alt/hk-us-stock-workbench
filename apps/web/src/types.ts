@@ -1,5 +1,5 @@
 export type Market = 'HK' | 'US';
-export type Page = 'overview' | 'opportunities' | 'instrument' | 'watchlist' | 'replay';
+export type Page = 'overview' | 'opportunities' | 'instrument' | 'watchlist' | 'replay' | 'realtime';
 
 export interface MarketStatus {
   market: Market;

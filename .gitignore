@@ -6,6 +6,8 @@ dist/
 !.env.example
 .DS_Store
 data/local-runtime.json
+data/futu-client.json
+data/futu-oauth-pending.json
 data/*.sqlite3*
 data/cache/
 data/logs/

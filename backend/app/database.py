@@ -146,6 +146,43 @@ CREATE TABLE IF NOT EXISTS trades (
     status TEXT NOT NULL,
     skip_reason TEXT
 );
+CREATE TABLE IF NOT EXISTS realtime_quotes (
+    symbol TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    market TEXT NOT NULL CHECK (market IN ('HK', 'US')),
+    currency TEXT NOT NULL,
+    last_price REAL,
+    prev_close_price REAL,
+    open_price REAL,
+    high_price REAL,
+    low_price REAL,
+    volume REAL,
+    turnover REAL,
+    quote_time_ms INTEGER NOT NULL,
+    received_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    session TEXT NOT NULL DEFAULT 'REGULAR'
+);
+CREATE TABLE IF NOT EXISTS realtime_snapshots (
+    symbol TEXT NOT NULL,
+    snapshot_minute TEXT NOT NULL,
+    name TEXT NOT NULL,
+    market TEXT NOT NULL CHECK (market IN ('HK', 'US')),
+    currency TEXT NOT NULL,
+    last_price REAL,
+    prev_close_price REAL,
+    open_price REAL,
+    high_price REAL,
+    low_price REAL,
+    volume REAL,
+    turnover REAL,
+    quote_time_ms INTEGER NOT NULL,
+    received_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    session TEXT NOT NULL DEFAULT 'REGULAR',
+    PRIMARY KEY (symbol, snapshot_minute)
+);
+CREATE INDEX IF NOT EXISTS idx_realtime_snapshots_minute ON realtime_snapshots(snapshot_minute, symbol);
 """
 
 

@@ -134,7 +134,7 @@ def start() -> int:
     env = os.environ.copy()
     env.update(env_config)
     env["HKUS_DATABASE"] = str((ROOT / env_config["HKUS_DATABASE"]).resolve()) if not Path(env_config["HKUS_DATABASE"]).is_absolute() else env_config["HKUS_DATABASE"]
-    command = [sys.executable if os.name == "nt" else str(python), "-m", "uvicorn", "app.main:app", "--app-dir", str(ROOT / "backend"), "--host", host, "--port", str(port)]
+    command = [sys.executable if os.name == "nt" else str(python), "-m", "uvicorn", "app.main:app", "--app-dir", str(ROOT / "backend"), "--host", host, "--port", str(port), "--no-access-log"]
     with LOG_FILE.open("ab") as log:
         process = subprocess.Popen(command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=(os.name != "nt"))
     time.sleep(.5)

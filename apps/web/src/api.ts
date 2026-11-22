@@ -21,4 +21,6 @@ export const api = {
   removeWatch: (id: string) => request(`/api/watchlist/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   refresh: (market: Market | 'ALL' = 'ALL') => request<{ items: Array<{ status: string }> }>('/api/refresh', { method: 'POST', body: JSON.stringify({ market }) }),
   simulate: (instrument_id: string, start_date: string, fee_bps: number, slippage_bps: number) => request<SimulationResult>('/api/simulations', { method: 'POST', body: JSON.stringify({ instrument_id, start_date, fee_bps, slippage_bps }) }),
+  realtimeStatus: () => request<any>('/api/realtime/status'),
+  realtimeQuotes: () => request<{ items: any[] }>('/api/realtime/quotes'),
 };

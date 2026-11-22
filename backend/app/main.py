@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,7 @@ from .services.calendar import latest_completed_session, session_schedule
 from .services.indicators import add_indicators
 from .services.market import _load_bars, initialize_demo, latest_snapshots, market_status, refresh_market, utc_now
 from .services.simulation import get_simulation, run_simulation
+from .services.futu_realtime import FutuError, WATCH_SYMBOLS, futu_realtime
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,7 +50,11 @@ async def lifespan(_: FastAPI):
     if DATA_MODE != "DEMO":
         raise RuntimeError("当前版本只实现了 DEMO 合成数据模式。")
     initialize_demo()
-    yield
+    await futu_realtime.start()
+    try:
+        yield
+    finally:
+        await futu_realtime.stop()
 
 
 app = FastAPI(
@@ -84,6 +89,98 @@ async def local_only(request: Request, call_next):
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True, "app": "hk-us-stock-workbench", "data_mode": DATA_MODE, "host": HOST, "port": PORT}
+
+
+@app.get("/api/realtime/status")
+def realtime_status() -> dict:
+    status = futu_realtime.public_status()
+    quotes = futu_realtime.quotes()
+    with connect() as db:
+        latest = db.execute("SELECT MAX(snapshot_minute) AS snapshot_minute FROM realtime_snapshots").fetchone()
+        count = db.execute("SELECT COUNT(*) AS n FROM realtime_snapshots").fetchone()["n"]
+    status["quotes_count"] = len(quotes)
+    status["fresh_quotes_count"] = sum(quote["freshness"] == "fresh" for quote in quotes)
+    status["latest_snapshot_minute"] = latest["snapshot_minute"] if latest else None
+    status["stored_snapshot_count"] = count
+    status["data_mode"] = (
+        "REALTIME" if status.get("connected")
+        else "AUTHORIZED_DISCONNECTED" if status.get("authorized")
+        else "WAITING_FOR_AUTHORIZATION"
+    )
+    status["symbols"] = [{"symbol": item["symbol"], "name": item["name"]} for item in WATCH_SYMBOLS]
+    return status
+
+
+@app.get("/api/realtime/quotes")
+def realtime_quotes() -> dict:
+    items = futu_realtime.quotes()
+    status = futu_realtime.public_status()
+    mode = "REALTIME" if status.get("connected") else "AUTHORIZED_DISCONNECTED" if status.get("authorized") else "WAITING_FOR_AUTHORIZATION"
+    return {"items": items, "count": len(items), "source": "Futu OpenAPI", "data_mode": mode, "connected": status.get("connected", False)}
+
+
+@app.get("/api/realtime/history")
+def realtime_history(symbol: str | None = None, limit: int = Query(default=2000, ge=1, le=20000)) -> dict:
+    items = futu_realtime.history(symbol, limit)
+    return {"items": items, "count": len(items), "source": "Futu OpenAPI", "data_mode": "REALTIME_ARCHIVE"}
+
+
+@app.get("/api/realtime/history.csv")
+def realtime_history_csv(symbol: str | None = None, limit: int = Query(default=20000, ge=1, le=20000)) -> Response:
+    items = futu_realtime.history(symbol, limit)
+    output = StringIO()
+    fields = [
+        ("snapshot_minute", "采集分钟"), ("symbol", "代码"), ("name", "名称"),
+        ("last_price", "最新价"), ("prev_close_price", "昨收"), ("open_price", "开盘"),
+        ("high_price", "最高"), ("low_price", "最低"), ("volume", "成交量"),
+        ("turnover", "成交额"), ("quote_time_ms", "行情时间戳毫秒"),
+        ("received_at", "接收时间"), ("source", "数据来源"), ("session", "时段"),
+    ]
+    writer = csv.writer(output)
+    writer.writerow([label for _, label in fields])
+    for item in items:
+        writer.writerow([item.get(key, "") for key, _ in fields])
+    content = "\ufeff" + output.getvalue()
+    return Response(content=content, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": 'attachment; filename="hk-realtime-quotes.csv"',
+    })
+
+
+@app.get("/api/realtime/oauth/start")
+async def realtime_oauth_start() -> RedirectResponse:
+    try:
+        authorize_url = await futu_realtime.begin_authorization()
+    except FutuError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return RedirectResponse(authorize_url, status_code=302, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/realtime/oauth/callback", response_class=HTMLResponse)
+async def realtime_oauth_callback(code: str | None = None, state: str | None = None, error: str | None = None):
+    if error or not code or not state:
+        return HTMLResponse(
+            "<!doctype html><meta charset='utf-8'><title>授权未完成</title><h2>授权未完成</h2><p>请返回工作台重新发起行情授权。</p><a href='/'>返回工作台</a><script>history.replaceState(null,'','/api/realtime/oauth/result')</script>",
+            status_code=400,
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
+    try:
+        await futu_realtime.complete_authorization(code, state)
+    except FutuError:
+        return HTMLResponse(
+            "<!doctype html><meta charset='utf-8'><title>授权未完成</title><h2>授权未完成</h2><p>校验或令牌交换失败；请返回工作台重新发起。</p><a href='/'>返回工作台</a><script>history.replaceState(null,'','/api/realtime/oauth/result')</script>",
+            status_code=400,
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
+    except Exception:
+        return HTMLResponse(
+            "<!doctype html><meta charset='utf-8'><title>授权已通过</title><h2>授权已通过，仍需确认本机安全存储</h2><p>令牌没有写入网页或日志。请检查 macOS 钥匙串提示，然后返回工作台查看连接状态。</p><a href='/'>返回工作台</a><script>history.replaceState(null,'','/api/realtime/oauth/result')</script>",
+            status_code=500,
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
+    return HTMLResponse(
+        "<!doctype html><meta charset='utf-8'><title>行情授权完成</title><h2>只读行情授权已完成</h2><p>工作台正在验证行情权限并连接推送。</p><a href='/'>返回工作台</a><script>history.replaceState(null,'','/api/realtime/oauth/result')</script>",
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )
 
 
 @app.get("/api/status")
