@@ -6,7 +6,7 @@
 
 ## macOS 快速开始
 
-前置条件：Python 3.12、Node.js 20.19+ 或 22.12+、npm、uv。首次双击 **设置环境.command** 安装锁定依赖并构建。之后双击 **启动港美股工作台.command**，浏览器会打开 `http://127.0.0.1:8740`。双击 **停止港美股工作台.command** 可停止本机服务。Mac 睡眠或关机期间服务会暂停。
+前置条件：Python 3.12、Node.js 20.19+ 或 22.12+、npm、uv。首次双击 **设置环境.command** 安装锁定依赖并构建。之后双击 **启动港美股工作台.command**，浏览器会打开 `http://127.0.0.1:8740`，同时将工作台加入当前 macOS 用户的登录自启，并在接电时通过 `caffeinate -s` 阻止闲置睡眠。launchd 每分钟检查并在服务退出后重新拉起。双击 **停止港美股工作台.command** 会停止工作台并移除自启与防闲置睡眠任务。Mac 关机、合盖睡眠、断网或用户退出登录时仍无法采集；这是本机免费方案的运行边界。
 
 也可在终端手动运行：
 
@@ -21,6 +21,14 @@ npm run build
 
 ```bash
 .venv/bin/python ops/local_runtime.py stop
+```
+
+macOS 登录自启与电源状态：
+
+```bash
+.venv/bin/python ops/macos_autostart.py install
+.venv/bin/python ops/macos_autostart.py status
+.venv/bin/python ops/macos_autostart.py stop
 ```
 
 ## Windows
